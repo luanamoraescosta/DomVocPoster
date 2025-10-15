@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Monastery Data Processor - Interactive Notebook</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<h1>Monastery Data Processor - Interactive Notebook</h1>
+
+<p>This page reproduces the notebook, but everything runs in the browser.</p>
+
+<div id="pyodideStatus">
+    <p>Initializing Pyodide... Please wait while we load the Python environment in your browser.</p>
+</div>
+
+
+<!-- UI elements that the script will reference -->
+<button id="runAllBtn" disabled>Run the whole notebook</button>
+<span id="globalLoader" class="loader" style="display:none;"></span>
+
+<div id="statusMessage" style="margin:10px 0; min-height:20px;"></div>
+
+<hr>
+
+<!-- Two-column layout for notebook and index -->
+<div class="notebook-container">
+    <!-- Compact notebook index/sidebar -->
+    <div id="notebook-index" class="index-sidebar">
+        <h3>Contents</h3>
+        <div id="index-content" class="index-content"></div>
+    </div>
+    
+    <!-- Container where the notebook cells will be injected -->
+    <div id="notebook" class="notebook-main"></div>
+</div>
+
+<!-- Load all JavaScript modules -->
+<script type="module">
+    import './js/utils.js';
+    import './js/pyodide-loader.js';
+    import './js/package-installer.js';
+    import './js/file-loader.js';
+    import './js/notebook-runner.js';
+    import { initializeApp } from './js/main.js';
+    
+    // Start the application
+    initializeApp();
+</script>
+
+</body>
+</html>

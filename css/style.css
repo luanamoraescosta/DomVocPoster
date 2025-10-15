@@ -1,0 +1,481 @@
+/* =============================
+   Base Layout with Germania Sacra Theme
+   ============================= */
+:root {
+  /* Germania Sacra Color Palette */
+  --germania-red: #9f1a1a;
+  --germania-red-light: #d32f2f;
+  --germania-chamois: #fff9f5;      /* Much lighter beige */
+  --germania-chamois-light: #fffdf9; /* Even lighter for subtle layers */
+  --germania-dark: #000000;
+  --germania-gray: #666666;
+  --germania-light-gray: #f8f9fa;
+  --germania-border-gray: #e9ecef;
+  --germania-table-hover: #fff0f0;  /* Very light red tint for hover */
+  --code-bg: #f3f6f9;              /* Enhanced code background */
+  --code-line-number: rgba(159, 26, 26, 0.4); /* Subtle red for line numbers */
+}
+
+body {
+  font-family: "Adobe Garamond Pro", "Book Antiqua", "Palatino", Georgia, serif;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #fafafa;
+  line-height: 1.6;
+  color: var(--germania-dark);
+}
+
+/* =============================
+   Notebook Layout
+   ============================= */
+.notebook-container {
+  display: flex;
+  gap: 25px;
+  margin-top: 20px;
+}
+
+.index-sidebar {
+  flex: 0 0 250px;
+  background: white; /* Much lighter beige */
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  height: fit-content;
+  position: sticky;
+  top: 20px;
+  border: 1px solid var(--germania-border-gray);
+}
+
+.index-content {
+  margin-top: 10px;
+}
+
+.index-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--germania-border-gray);
+  font-size: 0.9em;
+}
+
+.index-item a {
+  color: var(--germania-dark);
+  text-decoration: none;
+  display: block;
+  padding: 5px 0;
+  transition: all 0.2s;
+}
+
+.index-item a:hover {
+  color: var(--germania-red);
+  padding-left: 3px;
+}
+
+.index-item.active a {
+  color: var(--germania-red);
+  font-weight: normal;
+  border-left: 3px solid var(--germania-red);
+  padding-left: 12px;
+}
+
+.index-item.active a:hover {
+  padding-left: 15px;
+}
+
+/* =============================
+   Main Notebook Content
+   ============================= */
+.notebook-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.section {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  border-left: 4px solid var(--germania-red);
+  transition: all 0.3s ease;
+}
+
+.section:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+h1, h2 {
+  color: var(--germania-dark);
+  margin-top: 0;
+}
+
+h1 {
+  border-bottom: 1px solid var(--germania-border-gray);
+  padding-bottom: 10px;
+  font-weight: 500;
+}
+
+h2 {
+  font-size: 1.4em;
+  position: relative;
+  padding-left: 10px;
+}
+
+h2:before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 60%;
+  width: 3px;
+  background: var(--germania-red);
+  border-radius: 1px;
+}
+
+p {
+  margin-bottom: 15px;
+  font-size: 1.05em;
+  line-height: 1.7;
+}
+
+/* =============================
+   Code Blocks - Enhanced Visibility
+   ============================= */
+pre {
+  background: var(--code-bg); /* Enhanced background */
+  padding: 18px 15px 18px 35px; /* Reduced left padding (removed space for vertical bar) */
+  border-left: 5px solid var(--germania-red); /* Thicker accent border */
+  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+  overflow-x: auto;
+  border-radius: 0 4px 4px 0;
+  margin: 20px 0; /* More breathing room */
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.95em;
+  line-height: 1.55;
+  position: relative;
+  border: 1px solid var(--germania-border-gray);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease;
+}
+
+pre:hover {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+pre:before {
+  content: "Python";
+  position: absolute;
+  top: -2px;
+  right: 0;
+  background: var(--germania-red);
+  color: white;
+  font-size: 0.85em;
+  padding: 4px 10px;
+  border-radius: 0 0 0 4px;
+  font-family: Arial, sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* Line numbers for code blocks */
+pre span {
+  display: block;
+  position: relative;
+}
+
+pre span::before {
+  content: counter(line);
+  counter-increment: line;
+  position: absolute;
+  left: -25px; /* Adjusted position (was -30px) */
+  width: 25px;
+  color: var(--code-line-number);
+  text-align: right;
+  font-size: 0.85em;
+  user-select: none;
+}
+
+/* Enhanced inline code elements */
+code {
+  font-family: "Courier New", Courier, monospace;
+  background: #f0f4f8; /* More distinctive background */
+  padding: 3px 6px;
+  border-radius: 3px;
+  color: #333; /* Neutral dark gray - NOT red */
+  border: 1px solid rgba(159, 26, 26, 0.1);
+  transition: all 0.15s ease;
+}
+
+code:hover {
+  background: #e9edf3;
+  border-color: rgba(159, 26, 26, 0.2);
+  transform: translateY(-1px);
+}
+
+/* =============================
+   Buttons
+   ============================= */
+button {
+  background: var(--germania-red);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 0; /* Square buttons */
+  cursor: pointer;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-size: 1.05em; /* Slightly larger button text */
+}
+
+button:hover {
+  background: var(--germania-red-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+button:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* =============================
+   Status Elements
+   ============================= */
+#pyodideStatus {
+  margin: 10px 0;
+  padding: 15px;
+  background: var(--germania-chamois);
+  border-radius: 6px;
+  border-left: 4px solid var(--germania-red);
+}
+
+.package-warning {
+  background: rgba(255, 242, 206, 0.3); /* Lighter */
+  padding: 12px;
+  border-radius: 6px;
+  margin: 10px 0;
+  border-left: 4px solid var(--germania-red);
+  font-style: italic;
+}
+
+.step-status {
+  margin-top: 8px;
+  font-size: 0.85em;
+  color: var(--germania-gray);
+}
+
+.error {
+  color: #e74c3c;
+  font-weight: 500;
+}
+
+/* =============================
+   Output container
+   ============================= */
+.output {
+  margin-top: 15px;
+  padding: 15px;
+  background: #fff;
+  border-radius: 6px;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  border: 1px solid var(--germania-border-gray);
+  transition: all 0.2s;
+}
+
+.output:hover {
+  border-color: var(--germania-red);
+  box-shadow: 0 2px 6px rgba(159, 26, 26, 0.08);
+}
+
+/* Force all tables inside .output */
+.output table,
+.output .dataframe {
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85em;
+  background: #fff;
+  border: 1px solid var(--germania-border-gray);
+  margin-top: 10px;
+  table-layout: auto;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+/* Header and cell formatting */
+.output th,
+.output td {
+  padding: 10px 12px;
+  border: 1px solid var(--germania-border-gray);
+  text-align: left;
+  white-space: nowrap;
+  vertical-align: top;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 120px;
+  max-width: 250px;
+  transition: all 0.15s ease;
+  background-color: #fff;
+}
+
+/* Enhanced cell hover effect */
+.output td:hover {
+  background-color: var(--germania-table-hover);
+  z-index: 2;
+  box-shadow: 0 0 0 1px var(--germania-red);
+  position: relative;
+}
+
+/* Header styling */
+.output thead th {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  background-color: var(--germania-red);
+  border-bottom: 2px solid var(--germania-border-gray);
+  color: white;
+}
+
+/* Alternating rows */
+.output tbody tr:nth-of-type(even) {
+  background-color: #fcfcfc;
+}
+
+.output tbody tr:hover {
+  background-color: var(--germania-table-hover);
+}
+
+/* =============================
+   Table info bar (optional)
+   ============================= */
+.table-status {
+  padding: 8px 12px;
+  background: var(--germania-chamois);
+  border-top: 1px solid var(--germania-border-gray);
+  font-size: 0.8em;
+  color: var(--germania-gray);
+  margin-top: 4px;
+  border-radius: 0 0 4px 4px;
+}
+
+/* =============================
+   Loader animation
+   ============================= */
+.loader {
+  border: 5px solid rgba(159, 26, 26, 0.1);
+  border-top: 5px solid var(--germania-red);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  margin-left: 10px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* =============================
+   Additional subtle layers
+   ============================= */
+/* Light gray layer for section backgrounds */
+.section {
+  background: #fff;
+  position: relative;
+  z-index: 1;
+}
+
+.section:after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, 
+    rgba(255, 255, 255, 0.9), 
+    rgba(250, 250, 250, 0.95));
+  border-radius: 8px;
+  z-index: -1;
+}
+
+/* Light gray layer for output backgrounds */
+.output {
+  position: relative;
+}
+
+.output:after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, 
+    rgba(255, 255, 255, 0.95), 
+    rgba(252, 252, 252, 0.98));
+  border-radius: 6px;
+  z-index: -1;
+}
+
+/* =============================
+   Responsive
+   ============================= */
+@media screen and (max-width: 992px) {
+  .notebook-container {
+    flex-direction: column;
+  }
+  
+  .index-sidebar {
+    width: 100%;
+    position: relative;
+    top: auto;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .output th,
+  .output td {
+    padding: 8px 10px;
+    font-size: 0.75em;
+    min-width: 100px;
+    max-width: 180px;
+  }
+  .table-status {
+    font-size: 0.75em;
+  }
+  
+  h1 {
+    font-size: 1.8em;
+  }
+  
+  h2 {
+    font-size: 1.3em;
+  }
+  
+  /* Mobile-specific code block adjustments */
+  pre {
+    padding: 15px 10px 15px 30px;
+    font-size: 0.85em;
+  }
+  
+  pre span::before {
+    left: -22px;
+    width: 20px;
+    font-size: 0.75em;
+  }
+}

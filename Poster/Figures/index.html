@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Monastery Data Processor - Interactive Notebook</title>
+<style>
+    body {font-family:Arial,Helvetica,sans-serif;max-width:1200px;margin:0 auto;padding:20px;background:#fafafa;line-height:1.6;}
+    h1, h2, h3 {color:#2c3e50;}
+    h1 {border-bottom:2px solid #3498db;padding-bottom:10px;}
+    .section {margin-bottom:30px;padding:15px;background:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+    pre {background:#f4f4f4;padding:10px;border-left:4px solid #3498db;overflow-x:auto;}
+    code {font-family:"Courier New",Courier,monospace;}
+    .output {margin-top:10px;padding:10px;background:#e8f5e9;border-radius:4px;white-space:pre-wrap;}
+    button {background:#3498db;color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;margin-top:10px;}
+    button:hover {background:#2980b9;}
+    .loader {border:5px solid #f3f3f3;border-top:5px solid #3498db;border-radius:50%;width:30px;height:30px;animation:spin 1s linear infinite;display:inline-block;margin-left:10px;}
+    @keyframes spin {0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+    .error {color:red; font-weight:bold;}
+    #pyodideStatus {margin:10px 0; padding:10px; background:#f8f9fa; border-radius:4px;}
+    .package-warning {background:#fff3cd; padding:10px; border-radius:4px; margin:10px 0;}
+    .step-status {margin-top:5px; font-size:0.9em; color:#666;}
+</style>
+</head>
+<body>
+
+<h1>Monastery Data Processor - Interactive Notebook</h1>
+
+<p>This page reproduces the notebook you described, but everything runs in the browser.  
+Each step is shown with a short English explanation, the Python code that is executed, and the resulting output.</p>
+
+<div id="pyodideStatus">
+    <p>Initializing Pyodide... Please wait while we load the Python environment in your browser.</p>
+</div>
+
+<div class="package-warning">
+    <strong>Note:</strong> This notebook requires pandas and Excel processing packages which are large. 
+    The first load may take 2-3 minutes as Pyodide downloads all required packages.
+</div>
+
+<!-- UI elements that the script will reference -->
+<button id="runAllBtn" disabled>Run the whole notebook</button>
+<span id="globalLoader" class="loader" style="display:none;"></span>
+
+<div id="statusMessage" style="margin:10px 0; min-height:20px;"></div>
+
+<hr>
+
+<!-- Container where the notebook cells will be injected -->
+<div id="notebook"></div>
+
+<script>
+// Global variable to hold the Pyodide instance
+let pyodide = null;
+
+/* Helper: create a notebook cell (section) on the page */
+function addSection(id, title, description, code) {
+    const container = document.getElementById('notebook');
+
+    const sec = document.createElement('div');
+    sec.className = 'section';
+    sec.id = id;
+
+    const h2 = document.createElement('h2');
+    h2.textContent = title;
+    sec.appendChild(h2);
+
+    const p = document.createElement('p');
+    p.innerHTML = description;
+    sec.appendChild(p);
+
+    const pre = document.createElement('pre');
+    const codeEl = document.createElement('code');
+    codeEl.textContent = code.trim();
+    pre.appendChild(codeEl);
+    sec.appendChild(pre);
+
+    const outDiv = document.createElement('div');
+    outDiv.className = 'output';
+    outDiv.id = `${id}-output`;
+    sec.appendChild(outDiv);
+    
+    const statusDiv = document.createElement('div');
+    statusDiv.className = 'step-status';
+    statusDiv.id = `${id}-status`;
+    sec.appendChild(statusDiv);
+
+    container.appendChild(sec);
+    return sec;
+}
+
+/* Update step status */
+function updateStepStatus(stepId, message, isError = false) {
+    const statusDiv = document.getElementById(`${stepId}-status`);
+    if (statusDiv) {
+        statusDiv.textContent = message;
+        statusDiv.style.color = isError ? '#e74c3c' : '#666';
+    }
+}
+
+/* Load Excel files into Pyodide's virtual file system */
+async function loadExcelFiles() {
+    const statusMessage = document.getElementById('statusMessage');
+    statusMessage.textContent = 'Loading data files...';
+    
+    // Primeiro, vamos verificar o diretório atual do Pyodide
+    try {
+        await pyodide.runPythonAsync(`
+            import os
+            print(f"Current working directory in Pyodide: {os.getcwd()}")
+            print(f"Contents of root: {os.listdir('/')}")
+        `);
+    } catch (e) {
+        console.error("Error checking Pyodide working directory:", e);
+    }
+    
+    const files = [
+        'data/KlosterDBExports/gs_monastery.xlsx',
+        'data/KlosterDBExports/gs_monastery_location.xlsx',
+        'data/KlosterDBExports/gs_places.xlsx'
+    ];
+    
+    let loadedFiles = 0;
+    
+    for (const file of files) {
+        try {
+            console.log(`Attempting to fetch: ${file}`);
+            const response = await fetch(file);
+            
+            if (response.ok) {
+                console.log(`Successfully fetched: ${file} (status: ${response.status})`);
+                const arrayBuffer = await response.arrayBuffer();
+                
+                // Garantir que o diretório existe no FS do Pyodide
+                const dirPath = file.split('/').slice(0, -1).join('/');
+                const fullPath = `/${dirPath}`;
+                
+                console.log(`Creating directory in Pyodide FS: ${fullPath}`);
+                
+                try {
+                    await pyodide.runPythonAsync(`
+                        import os
+                        if not os.path.exists('${fullPath}'):
+                            os.makedirs('${fullPath}', exist_ok=True)
+                            print(f"Created directory: ${fullPath}")
+                        else:
+                            print(f"Directory already exists: ${fullPath}")
+                    `);
+                } catch (e) {
+                    console.error("Error creating directory:", e);
+                }
+                
+                // Salvar o arquivo no FS do Pyodide
+                const absolutePath = `/${file}`;
+                console.log(`Writing file to Pyodide FS: ${absolutePath}`);
+                pyodide.FS.writeFile(absolutePath, new Uint8Array(arrayBuffer));
+                
+                // Verificar se o arquivo foi salvo corretamente
+                try {
+                    const exists = await pyodide.runPythonAsync(`
+                        import os
+                        file_path = '${absolutePath}'
+                        exists = os.path.exists(file_path)
+                        print(f"File {'exists' if exists else 'NOT FOUND'} at: {file_path}")
+                        if exists:
+                            print(f"File size: {os.path.getsize(file_path)} bytes")
+                        exists
+                    `);
+                    
+                    if (exists) {
+                        loadedFiles++;
+                        console.log(`Successfully verified file: ${absolutePath}`);
+                    } else {
+                        console.error(`File was written but not found: ${absolutePath}`);
+                    }
+                } catch (e) {
+                    console.error("Error checking file existence:", e);
+                }
+            } else {
+                console.error(`File not found: ${file} (status ${response.status})`);
+                statusMessage.innerHTML = `<span class="error">File not found: ${file} (status ${response.status})</span>`;
+            }
+        } catch (e) {
+            console.error(`Error loading ${file}:`, e);
+            statusMessage.innerHTML = `<span class="error">Error loading ${file}: ${e.message}</span>`;
+        }
+    }
+    
+    // Verificar todos os arquivos no diretório de dados
+    try {
+        await pyodide.runPythonAsync(`
+            import os
+            print("Final contents of /data/KlosterDBExports:")
+            try:
+                print(os.listdir('/data/KlosterDBExports'))
+            except Exception as e:
+                print(f"Error listing directory: {e}")
+        `);
+    } catch (e) {
+        console.error("Error checking final directory contents:", e);
+    }
+    
+    statusMessage.textContent = `Loaded ${loadedFiles} data files.`;
+    return loadedFiles > 0;
+}
+
+/* Install Python packages using micropip */
+async function installPythonPackages() {
+    const statusMessage = document.getElementById('statusMessage');
+    
+    statusMessage.textContent = 'Installing pandas and dependencies...';
+    updateStepStatus('step0', 'Installing required Python packages...');
+    
+    try {
+        // First ensure micropip is available
+        await pyodide.loadPackage('micropip');
+        
+        // Install required packages using micropip
+        await pyodide.runPythonAsync(`
+            import micropip
+            await micropip.install([
+                'pandas',
+                'numpy',
+                'python-dateutil',
+                'pytz',
+                'openpyxl',
+                'et-xmlfile',
+                'jdcal'
+            ])
+        `);
+        
+        updateStepStatus('step0', 'Required packages installed successfully.');
+        statusMessage.textContent = 'Python packages installed successfully.';
+        return true;
+    } catch (e) {
+        updateStepStatus('step0', `Error installing packages: ${e.message}`, true);
+        statusMessage.innerHTML = `<span class="error">Package installation error: ${e.message}</span>`;
+        console.error('Package installation error:', e);
+        return false;
+    }
+}
+
+/* Main notebook runner - executed after Pyodide is ready */
+async function runNotebook() {
+    const statusMessage = document.getElementById('statusMessage');
+    const notebookContainer = document.getElementById('notebook');
+    notebookContainer.innerHTML = ''; // Clear previous runs
+    
+    try {
+        // Step 0: Install required packages
+        updateStepStatus('step0', 'Installing required Python packages...');
+        const packagesInstalled = await installPythonPackages();
+        if (!packagesInstalled) {
+            throw new Error('Failed to install required Python packages');
+        }
+        
+        // Check if data files are available
+        updateStepStatus('step1', 'Checking for data files...');
+        const hasDataFiles = await loadExcelFiles();
+        if (!hasDataFiles) {
+            statusMessage.innerHTML = '<span class="error">Error: Required data files not found. Please make sure they are in the correct location in your GitHub repository.</span>';
+            updateStepStatus('step1', 'Error: Data files not found', true);
+            return;
+        }
+        updateStepStatus('step1', 'Data files loaded successfully.');
+        
+        /* Step 1: Define the paths to the source Excel files */
+        addSection(
+            'step1',
+            '1. Define the paths to the source Excel files',
+            'The notebook expects the following folder structure (relative to this HTML file):' +
+            '<pre>project_root/\n' +
+            '│\n' +
+            '├─ data/\n' +
+            '│   └─ KlosterDBExports/\n' +
+            '│       ├─ gs_monastery.xlsx\n' +
+            '│       ├─ gs_monastery_location.xlsx\n' +
+            '│       └─ gs_places.xlsx   # optional, not used in the first part\n' +
+            '└─ index.html</pre>',
+            'DATA_ROOT = "data/KlosterDBExports"\n' +
+            'MONASTERY_XLSX   = f"{DATA_ROOT}/gs_monastery.xlsx"\n' +
+            'LOCATION_XLSX    = f"{DATA_ROOT}/gs_monastery_location.xlsx"\n' +
+            'PLACES_XLSX      = f"{DATA_ROOT}/gs_places.xlsx"   # optional'
+        );
+        
+        await pyodide.runPythonAsync(`
+            DATA_ROOT = "/data/KlosterDBExports"
+            MONASTERY_XLSX   = f"{DATA_ROOT}/gs_monastery.xlsx"
+            LOCATION_XLSX    = f"{DATA_ROOT}/gs_monastery_location.xlsx"
+            PLACES_XLSX      = f"{DATA_ROOT}/gs_places.xlsx"
+            
+            # Verificar explicitamente se os arquivos existem
+            import os
+            print(f"Checking if MONASTERY_XLSX exists: {os.path.exists(MONASTERY_XLSX)}")
+            print(f"Checking if LOCATION_XLSX exists: {os.path.exists(LOCATION_XLSX)}")
+`);
+        document.getElementById('step1-output').textContent = 'Path variables created.';
+        updateStepStatus('step1', 'Path variables created successfully.');
+
+        /* Step 2: Load the two Excel sheets into pandas DataFrames */
+        const step2 = addSection(
+            'step2',
+            '2. Load the two Excel sheets into pandas DataFrames',
+            'We read the .xlsx files with pandas.read_excel.',
+            'import pandas as pd\n\n' +
+            'gs_monastery = pd.read_excel(MONASTERY_XLSX, engine="openpyxl")\n' +
+            'gs_monastery_location = pd.read_excel(LOCATION_XLSX, engine="openpyxl")\n\n' +
+            'print("Monastery table (first 5 rows):")\n' +
+            'display(gs_monastery.head())\n\n' +
+            'print("\\nMonastery-location table (first 5 rows):")\n' +
+            'display(gs_monastery_location.head())'
+        );
+        
+        updateStepStatus('step2', 'Loading Excel files...');
+        
+        try {
+            await pyodide.runPythonAsync(`
+                import pandas as pd
+                gs_monastery = pd.read_excel(MONASTERY_XLSX, engine="openpyxl")
+                gs_monastery_location = pd.read_excel(LOCATION_XLSX, engine="openpyxl")
+            `);
+            
+            const out2a = await pyodide.runPythonAsync(`
+                gs_monastery.head().to_html()
+            `);
+            const out2b = await pyodide.runPythonAsync(`
+                gs_monastery_location.head().to_html()
+            `);
+            document.getElementById('step2-output').innerHTML = out2a + out2b;
+            updateStepStatus('step2', 'Excel files loaded successfully.');
+        } catch (e) {
+            const errorMsg = `Error loading Excel files: ${e.message}`;
+            document.getElementById('step2-output').innerHTML = 
+                `<div class="error">${errorMsg}</div>`;
+            updateStepStatus('step2', errorMsg, true);
+            throw e;
+        }
+
+        /* Step 3: Merge the two tables (LEFT JOIN) */
+        addSection(
+            'step3',
+            '3. Merge the two tables (LEFT JOIN)',
+            'We keep every row from the location table and bring in the matching monastery data using the columns gsn_id (location) and id_gsn (monastery).',
+            'merged = pd.merge(\n' +
+            '    gs_monastery_location,\n' +
+            '    gs_monastery,\n' +
+            '    left_on="gsn_id",\n' +
+            '    right_on="id_gsn",\n' +
+            '    how="left",\n' +
+            '    suffixes=("_loc", "_mon")\n' +
+            ')\n\n' +
+            'print("Merged table (first 5 rows):")\n' +
+            'display(merged.head())'
+        );
+        
+        updateStepStatus('step3', 'Merging tables...');
+        
+        await pyodide.runPythonAsync(`
+            merged = pd.merge(
+                gs_monastery_location,
+                gs_monastery,
+                left_on="gsn_id",
+                right_on="id_gsn",
+                how="left",
+                suffixes=("_loc", "_mon")
+            )
+        `);
+        
+        const out3 = await pyodide.runPythonAsync(`
+            merged.head().to_html()
+        `);
+        document.getElementById('step3-output').innerHTML = out3;
+        updateStepStatus('step3', 'Tables merged successfully.');
+
+        /* Step 4: Keep only rows whose status is "Online" */
+addSection(
+    'step4',
+    '4. Keep only rows whose status is "Online"',
+    'FactGrid only wants active entries.',
+    'online = merged[merged["status"] == "Online"].copy()\n\n' +
+    'print(f"Rows before filtering: {len(merged)}")\n' +
+    'print(f"Rows after keeping only \'Online\': {len(online)}")'
+);
+
+updateStepStatus('step4', 'Filtering online entries...');
+
+await pyodide.runPythonAsync(`
+    online = merged[merged["status"] == "Online"].copy()
+`);
+
+const out4 = await pyodide.runPythonAsync(`
+    f"Rows before filtering: {len(merged)}\\nRows after keeping only \'Online\': {len(online)}"
+`);
+document.getElementById('step4-output').textContent = out4;
+updateStepStatus('step4', 'Online entries filtered successfully.');
+
+/* Step 5: Drop columns that are not needed for the upload */
+addSection(
+    'step5',
+    '5. Drop columns that are not needed for the upload',
+    'The Access export contains many bookkeeping columns. We remove them only if they exist (some older exports may miss a column).',
+    'drop_columns = [\n' +
+    '    "relocated", "comment", "main_location", "diocese_id", "id_monastery",\n' +
+    '    "date_created", "created_by_user", "note", "patrocinium", "selection",\n' +
+    '    "processing_status", "gs_persons", "selection_criteria", "last_change",\n' +
+    '    "changed_by_user", "founder"\n' +
+    ']\n\n' +
+    'existing_to_drop = [c for c in drop_columns if c in online.columns]\n' +
+    'online_clean = online.drop(columns=existing_to_drop)\n\n' +
+    'print(f"Dropped {len(existing_to_drop)} columns that were present.")\n' +
+    'print("Remaining columns:")\n' +
+    'display(pd.Series(online_clean.columns))'
+);
+
+updateStepStatus('step5', 'Dropping unnecessary columns...');
+
+await pyodide.runPythonAsync(`
+    drop_columns = [
+        "relocated", "comment", "main_location", "diocese_id", "id_monastery",
+        "date_created", "created_by_user", "note", "patrocinium", "selection",
+        "processing_status", "gs_persons", "selection_criteria", "last_change",
+        "changed_by_user", "founder"
+    ]
+    
+    existing_to_drop = [c for c in drop_columns if c in online.columns]
+    online_clean = online.drop(columns=existing_to_drop)
+`);
+
+const out5a = await pyodide.runPythonAsync(`
+    f"Dropped {len(existing_to_drop)} columns that were present."
+`);
+const out5b = await pyodide.runPythonAsync(`
+    pd.Series(online_clean.columns).to_frame(name="Remaining columns").to_html()
+`);
+document.getElementById('step5-output').innerHTML = out5a + out5b;
+updateStepStatus('step5', 'Unnecessary columns dropped successfully.');
+
+        /* Step 6: Build the German label (Lde) for the building-complex items */
+        addSection(
+            'step6',
+            '6. Build the German label (Lde) for the building-complex items',
+            'The label must follow the pattern:\n' +
+            'Gebäudekomplex <monastery_name> [(<location_name>)]\n\n' +
+            'If location_name is missing we omit the parentheses.',
+            'def safe_str(x):\n' +
+            '    return "" if pd.isna(x) else str(x)\n\n' +
+            'online_clean["Lde"] = (\n' +
+            '    "Gebäudekomplex " +\n' +
+            '    online_clean["monastery_name"].apply(safe_str) +\n' +
+            '    " (" +\n' +
+            '    online_clean["location_name"].apply(safe_str) +\n' +
+            '    ")"\n' +
+            ')\n\n' +
+            'online_clean["Lde"] = online_clean["Lde"].str.replace(r"\\s\$\$", "", regex=True)\n\n' +
+            'print("Sample of the new label column:")\n' +
+            'display(online_clean[["monastery_name", "location_name", "Lde"]].head())'
+        );
+        
+        updateStepStatus('step6', 'Building German labels...');
+        
+        await pyodide.runPythonAsync(`
+            def safe_str(x):
+                return "" if pd.isna(x) else str(x)
+            
+            online_clean["Lde"] = (
+                "Gebäudekomplex " +
+                online_clean["monastery_name"].apply(safe_str) +
+                " (" +
+                online_clean["location_name"].apply(safe_str) +
+                ")"
+            )
+            
+            online_clean["Lde"] = online_clean["Lde"].str.replace(r"\\s\$\$", "", regex=True)
+        `);
+        
+        const out6 = await pyodide.runPythonAsync(`
+            online_clean[["monastery_name","location_name","Lde"]].head().to_html()
+        `);
+        document.getElementById('step6-output').innerHTML = out6;
+        updateStepStatus('step6', 'German labels built successfully.');
+
+        /* Step 7: Preview the final table (what will be uploaded) */
+        addSection(
+            'step7',
+            '7. Preview the final table (what will be uploaded)',
+            'Only the columns we really need are shown.',
+            'cols_of_interest = [\n' +
+            '    "Lde", "monastery_name", "location_name", "latitude", "longitude",\n' +
+            '    "location_begin_tpq", "location_end_tpq",\n' +
+            '    "location_begin_note", "location_end_note"\n' +
+            ']\n\n' +
+            'display(online_clean[cols_of_interest].head(10))'
+        );
+        
+        updateStepStatus('step7', 'Preparing final table...');
+        
+        const out7 = await pyodide.runPythonAsync(`
+            cols_of_interest = [
+                "Lde", "monastery_name", "location_name", "latitude", "longitude",
+                "location_begin_tpq", "location_end_tpq",
+                "location_begin_note", "location_end_note"
+            ]
+            online_clean[cols_of_interest].head(10).to_html()
+        `);
+        document.getElementById('step7-output').innerHTML = out7;
+        updateStepStatus('step7', 'Final table prepared successfully.');
+
+        /* Step 8: Generate QuickStatements for FactGrid */
+        addSection(
+            'step8',
+            '8. Generate QuickStatements for FactGrid',
+            'Each building-complex becomes a block of QuickStatements. Only fields that actually have a value are added.',
+            'def qs_escape(text: str) -> str:\n' +
+            '    """Escape double quotes for QuickStatements (\\" → \\\\\\" )."""\n' +
+            '    return text.replace(\'"\', r\'\\\\\\"\')\n\n' +
+            'quickstatements = []\n\n' +
+            'for _, row in online_clean.iterrows():\n' +
+            '    qs = "CREATE\\n"\n' +
+            '    qs += f\'Len: "{qs_escape(row["Lde"])}"\\n\'\n' +
+            '    qs += \'Den: "Gebäudekomplex eines Klosters aus der Klosterdatenbank"\\n\'\n\n' +
+            '    # Coordinates (P6) - only if both latitude and longitude are present\n' +
+            '    if pd.notna(row["latitude"]) and pd.notna(row["longitude"]):\n' +
+            '        qs += f"P6: {row[\'latitude\']}/{row[\'longitude\']}\\n"\n\n' +
+            '    # Begin year (P58)\n' +
+            '    if pd.notna(row["location_begin_tpq"]):\n' +
+            '        qs += f"P58: {int(float(row[\'location_begin_tpq\']))}\\n"\n\n' +
+            '    # End year (P59)\n' +
+            '    if pd.notna(row["location_end_tpq"]):\n' +
+            '        qs += f"P59: {int(float(row[\'location_end_tpq\']))}\\n"\n\n' +
+            '    # Notes (S29) - escaped\n' +
+            '    if pd.notna(row["location_begin_note"]):\n' +
+            '        qs += f\'S29: "{qs_escape(str(row["location_begin_note"]))}"\\n\'\n\n' +
+            '    if pd.notna(row["location_end_note"]):\n' +
+            '        qs += f\'S29: "{qs_escape(str(row["location_end_note"]))}"\\n\'\n\n' +
+            '    quickstatements.append(qs)\n\n' +
+            '# Show the first two blocks as a sanity check\n' +
+            'first_two = "\\n---\\n".join(quickstatements[:2])\n' +
+            'print(first_two)'
+        );
+        
+        updateStepStatus('step8', 'Generating QuickStatements...');
+        
+        await pyodide.runPythonAsync(`
+            def qs_escape(text: str) -> str:
+                return text.replace('"', r'\\"')
+            
+            quickstatements = []
+            
+            for _, row in online_clean.iterrows():
+                qs = "CREATE\\n"
+                qs += f'Len: "{qs_escape(row["Lde"])}"\\n'
+                qs += 'Den: "Gebäudekomplex eines Klosters aus der Klosterdatenbank"\\n'
+            
+                # Coordinates (P6)
+                if pd.notna(row["latitude"]) and pd.notna(row["longitude"]):
+                    qs += f"P6: {row['latitude']}/{row['longitude']}\\n"
+            
+                # Begin year (P58)
+                if pd.notna(row["location_begin_tpq"]):
+                    qs += f"P58: {int(float(row['location_begin_tpq']))}\\n"
+            
+                # End year (P59)
+                if pd.notna(row["location_end_tpq"]):
+                    qs += f"P59: {int(float(row['location_end_tpq']))}\\n"
+            
+                # Notes (S29)
+                if pd.notna(row["location_begin_note"]):
+                    qs += f'S29: "{qs_escape(str(row["location_begin_note"]))}"\\n'
+            
+                if pd.notna(row["location_end_note"]):
+                    qs += f'S29: "{qs_escape(str(row["location_end_note"]))}"\\n'
+            
+                quickstatements.append(qs)
+        `);
+        
+        const out8 = await pyodide.runPythonAsync(`
+            first_two = "\\n---\\n".join(quickstatements[:2])
+            first_two
+        `);
+        document.getElementById('step8-output').textContent = out8;
+        updateStepStatus('step8', 'QuickStatements generated successfully.');
+
+        /* Step 9: Save the QuickStatements to a text file */
+        addSection(
+            'step9',
+            '9. Save the QuickStatements to a text file',
+            'Click the button below to download the file. The file can be pasted directly into the FactGrid QuickStatements editor.',
+            'OUTPUT_FILE = "monastery_buildings.quickstatements.txt"\n' +
+            'with open(OUTPUT_FILE, "w", encoding="utf-8") as f:\n' +
+            '    f.write("\\n\\n".join(quickstatements))\n\n' +
+            'print(f"QuickStatements written to {OUTPUT_FILE}")\n' +
+            'print(f"Total items created: {len(quickstatements)}")'
+        );
+        
+        updateStepStatus('step9', 'Saving QuickStatements file...');
+        
+        await pyodide.runPythonAsync(`
+            OUTPUT_FILE = "monastery_buildings.quickstatements.txt"
+            with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+                f.write("\\n\\n".join(quickstatements))
+        `);
+        
+        const out9 = await pyodide.runPythonAsync(`
+            f"QuickStatements written to monastery_buildings.quickstatements.txt\\nTotal items created: {len(quickstatements)}"
+        `);
+        document.getElementById('step9-output').textContent = out9;
+        updateStepStatus('step9', 'QuickStatements file saved successfully.');
+
+        // Add the download button
+        const downloadBtn = document.createElement('button');
+        downloadBtn.textContent = 'Download QuickStatements';
+        downloadBtn.id = 'downloadBtn';
+        document.getElementById('step9').appendChild(downloadBtn);
+
+        downloadBtn.addEventListener('click', async () => {
+            try {
+                const data = await pyodide.FS.readFile('monastery_buildings.quickstatements.txt', {encoding: 'utf8'});
+                const blob = new Blob([data], {type: 'text/plain'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'monastery_buildings.quickstatements.txt';
+                a.click();
+                URL.revokeObjectURL(url);
+                statusMessage.textContent = 'Download started successfully.';
+            } catch (e) {
+                statusMessage.innerHTML = `<span class="error">Error creating download: ${e.message}</span>`;
+                console.error('Download error:', e);
+            }
+        });
+        
+        statusMessage.textContent = 'Notebook execution completed successfully.';
+        
+    } catch (e) {
+        statusMessage.innerHTML = `<span class="error">Execution failed: ${e.message}</span>`;
+        console.error('Notebook execution error:', e);
+        throw e;
+    }
+}
+
+/* Load Pyodide properly */
+async function loadPyodideAndRun() {
+    const statusDiv = document.getElementById('pyodideStatus');
+    const runAllBtn = document.getElementById('runAllBtn');
+    const statusMessage = document.getElementById('statusMessage');
+    
+    try {
+        statusDiv.innerHTML = '<p>Loading Pyodide library... (this may take a minute)</p>';
+        
+        // Create script element to load Pyodide
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js';
+        
+        // Show loading indicator
+        document.getElementById('globalLoader').style.display = 'inline-block';
+        statusMessage.textContent = 'Downloading Pyodide runtime...';
+        
+        // Wait for the script to load
+        await new Promise((resolve, reject) => {
+            script.onload = resolve;
+            script.onerror = () => reject(new Error('Failed to load Pyodide library'));
+            document.head.appendChild(script);
+        });
+        
+        statusDiv.innerHTML = '<p>Initializing Python environment...</p>';
+        statusMessage.textContent = 'Initializing Python environment...';
+        
+        // Now that pyodide.js is loaded, we can call loadPyodide
+        pyodide = await loadPyodide({
+            indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/',
+            stdout: (msg) => console.log('Pyodide:', msg),
+            stderr: (msg) => console.error('Pyodide error:', msg),
+            fullStdLib: false,
+            // Increased memory to 2GB for pandas
+            memorySize: 2 * 1024 * 1024 * 1024
+        });
+        
+        // Add step 0 for package installation
+        addSection(
+            'step0',
+            '0. Install required Python packages',
+            'We need to install pandas and Excel processing packages. This may take 1-2 minutes the first time.',
+            '# Installing packages using micropip\n' +
+            'import micropip\n' +
+            'await micropip.install([\n' +
+            '    "pandas",\n' +
+            '    "numpy",\n' +
+            '    "python-dateutil",\n' + 
+            '    "pytz",\n' + 
+            '    "openpyxl",\n' + 
+            '    "et-xmlfile",\n' + 
+            '    "jdcal"\n' + 
+            '])'
+        );
+
+        statusDiv.innerHTML = `
+            <p>Python environment ready! Click the button below to run the notebook.</p>
+        `;
+        document.getElementById('globalLoader').style.display = 'none';
+        runAllBtn.disabled = false;
+        runAllBtn.textContent = 'Run the whole notebook';
+        statusMessage.textContent = 'Python environment initialized successfully.';
+
+    } catch (e) {
+        document.getElementById('globalLoader').style.display = 'none';
+        statusDiv.innerHTML = `<div class="error">Failed to load Pyodide: ${e.message}</div>`;
+        statusMessage.innerHTML = `<span class="error">Initialization error: ${e.message}</span>`;
+        console.error('Pyodide initialization error:', e);
+    }
+
+    // Then set up the run button
+    runAllBtn.addEventListener('click', async () => {
+        runAllBtn.disabled = true;
+        runAllBtn.textContent = 'Running...';
+        statusMessage.textContent = 'Executing notebook...';
+
+        try {
+            await runNotebook();
+        } catch (e) {
+            statusMessage.innerHTML = `<span class="error">An error occurred: ${e.message}</span>`;
+            console.error('Notebook execution error:', e);
+        } finally {
+            runAllBtn.disabled = false;
+            runAllBtn.textContent = 'Run the whole notebook';
+        }
+    });
+}
+
+// Start the initialization when the page loads
+window.addEventListener('load', () => {
+    loadPyodideAndRun();
+});
+</script>
+
+</body>
+</html>
