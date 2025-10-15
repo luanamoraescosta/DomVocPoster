@@ -1,5 +1,0 @@
-- create an instance for the whole Statement
-- have the possibility to fix the Name
-- create an Illustration for the map
-- include factgrid id
-- make the rest of the nodes (the ondes apart from These) more transparent
